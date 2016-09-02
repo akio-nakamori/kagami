@@ -28,6 +28,14 @@ clean()
     fi
 }
 
+ids()
+{
+    if [ -f ~/.kagami/ids_list ]
+    then
+	echo `cat ~/.kagami/ids_list | wc -l`
+    fi
+}
+
 populate_download_list()
 {
 if [ ! -f ~/.kagami/ids_list ]
@@ -97,7 +105,7 @@ else
 	    #cat /tmp/kagami/prev.$PID
 	    #set +x
 	    jq -r .[].id_str /tmp/kagami/prev.$PID | sort -gu  > /tmp/kagami/ids_prev.$PID
-	    cat /tmp/kagami/prev.$PID
+	    #cat /tmp/kagami/prev.$PID
 	    rm /tmp/kagami/prev.$PID
 	    prev_size=`cat /tmp/kagami/ids_prev.$PID | wc -l`
 	    # check if size is near empty
@@ -382,10 +390,12 @@ if [ $# -gt 0 ]
 then
 	if [ $1 == "clean" ]
 	then
-		clean
+	    clean
+	elif [ $1 == "ids" ]
+	then
+	    ids
 	fi
-fi
-
+else
 if [ -f ~/.kagami/kagami.cfg ]
 then
 	source ~/.kagami/kagami.cfg
@@ -415,8 +425,9 @@ then
 	echo "Create ids.$PID"
 	jq -r .[].id_str /tmp/kagami/fav.$PID | sort -gu  > /tmp/kagami/ids.$PID
 	#exit
-	echo "Created ids.$PID"
-	debuglog "Parsing ids" $PID
+	# echo "Created ids.$PID"
+	sed --in-place '/null/d' /tmp/kagami/ids.$PID
+	# debuglog "Parsing ids" $PID
 	while IFS='' read -r line || [[ -n "$line" ]]
 	do
 		debuglog "while line:" $line
@@ -427,7 +438,7 @@ then
 			echo "$line processing..."
 			# get single tweet
 			jq ".[] | select(.id_str==\"$line\")" /tmp/kagami/fav.$PID > /tmp/kagami/$line.tmp
-			debuglog "processing $line" $(cat /tmp/kagami/$line.tmp)
+			# debuglog "processing $line" $(cat /tmp/kagami/$line.tmp)
                         # make download list
                         if twitter_get_data $line
 			then
@@ -485,6 +496,6 @@ then
 else
 	new_config
 fi
-
+fi
 
 # vim: tabstop=4: shiftwidth=4: noexpandtab:
