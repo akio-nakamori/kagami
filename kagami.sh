@@ -26,6 +26,7 @@ clean()
     then
         rm /tmp/kagami/kagami.tweet.lock
     fi
+    rm -f /tmp/kagami/*.tmp
 }
 
 ids()
@@ -36,6 +37,22 @@ ids()
     fi
 }
 
+tweet()
+{
+    #tweet tweet_id
+    twitter_get_tweet $1
+}
+
+max()
+{
+    twitter_get_fav max_id $1
+}
+
+since()
+{
+    twitter_get_fav since_id $1
+}
+
 populate_download_list()
 {
 if [ ! -f ~/.kagami/ids_list ]
@@ -44,65 +61,111 @@ then
     twitter_get_fav > /tmp/kagami/fav.$PID
     touch ~/.kagami/ids_list
 else
-    # first=$(head -n 1 ~/.kagami/ids_list)
+    first=$(head -n 1 ~/.kagami/ids_list)
     number=$(cat ~/.kagami/ids_list | wc -l)
     if [ $number -gt 0 ]
     then
 	cat ~/.kagami/ids_list | sort -ug > /tmp/kagami/ids_list.tmp
 	cat /tmp/kagami/ids_list.tmp > ~/.kagami/ids_list
 	rm /tmp/kagami/ids_list.tmp
-    	printf "Get new tweets"
+
+	printf "Get new tweets"
         last=$(tail -1 ~/.kagami/ids_list)
-	#set -x 
-        twitter_get_fav since_id $last > /tmp/kagami/fav.$PID
-	# check fav size, if its bigger than 100 (empty, error)
-	fav_size=`cat /tmp/kagami/fav.$PID | wc -c`
-	if [ $fav_size -gt 100 ]
-	then
-	    echo ": found"
-	else
-	    echo ": not found"
-	fi
-	#set +x
-	# cat /tmp/kagami/fav.$PID
-        # Limit is 15/15minuts, so its 1command per 1minute, then lets wait ~60sec
-        printf "wait for windows"
-        while [ $(( $(date --utc +%s) - 65 )) -lt $(date --utc --reference=/tmp/kagami/kagami.lock +%s) ]
-        do
-            # wait till next compare (add buffer so it will be allways more than 1command/1minut
+
+	while [ $(( $(date --utc +%s) - 65 )) -lt $(date --utc --reference=/tmp/kagami/kagami.lock +%s) ]
+	do
+	    # wait 60sec (65, but window is each 10 so 70sec)  before sending command
 	    printf "."
 	    sleep 10
 	done
-        touch /tmp/kagami/kagami.lock
-        echo ""
 
+        get_since=`twitter_get_fav since_id $last`
+	# wait 65s (because better more than 60 than getting code:34)
+	sleep 65
+	get_max=`twitter_get_fav max_id $first`
+	# echo $get_since > 1.txt
+	# echo $get_max > 2.txt
+	# exit
+	echo > /tmp/kagami/fav.$PID
+	if [[ $get_since == *"code\":"* ]]
+	then
+	    # error is timeout probably not empty but we will leave as it
+	    printf ": - "
+	    echo > /tmp/kagami/fav.$PID
+	else
+	    printf ": + "
+	    echo $get_since > /tmp/kagami/fav.$PID
+	fi
+
+	if [[ $get_max == *"code\":"* ]]
+	then
+	    printf ": - "
+	else
+	    printf ": + "
+	    echo $get_max >> /tmp/kagami/fav.$PID
+	fi
+	echo ""
+
+	# update lock
+        touch /tmp/kagami/kagami.lock
+	touch /tmp/kagami/kagami.tweet.lock
+
+	echo "Searching for missing older tweets"
 	numer=`cat ~/.kagami/ids_list | wc -l`
 	COUNTER=0
-        echo "Searching for missing tweets"
 	while [ $COUNTER -le $number ]
         do
-	    echo "$COUNTER/$number"
-	    #set -x
+	    printf "$COUNTER/$number : "
 	    num=$((number - COUNTER))
 	    if [ $num -eq 0 ]
 	    then
 		num=1
 	    fi
 	    new_id=$(sed "${num}q;d" ~/.kagami/ids_list)
-	    #set +x
-	    printf $new_id
+
+	    printf "$new_id :"
 	    COUNTER=$((COUNTER + count))
             while [ $(( $(date --utc +%s) - 65 )) -lt $(date --utc --reference=/tmp/kagami/kagami.lock +%s) ]
             do
                 # wait till next compare (add buffer so it will be allways more than 1command/1minut
-                printf "<"
+		# wait 65sec but refresh window is 10 sec so its 70sec.
+                printf "."
                 sleep 10
             done
-            touch /tmp/kagami/kagami.lock
-	    echo ""
-	    #set -x
-            twitter_get_fav max_id $new_id > /tmp/kagami/prev.$PID
-	    #cat /tmp/kagami/prev.$PID
+
+            max_fav=`twitter_get_fav max_id $new_id`
+	    # echo $max_fav > /tmp/kagami/prev.$new_id.tmp
+	    echo $max_fav > /tmp/kagami/prev.$PID
+
+	    touch /tmp/kagami/kagami.lock
+	    bad_code=1
+
+	    while [[ $max_fav == *"code\":34"* ]]
+	    do
+		while [ $(( $(date --utc +%s) - 10 )) -lt $(date --utc --reference=/tmp/kagami/kagami.lock +%s) ]
+		do
+		    sleep 60
+		done
+
+		max_fav=`twitter_get_fav max_id $new_id`
+		echo $mad_fav > /tmp/kagami/$new_id.tmp
+		echo $mad_fav > /tmp/kagami/prev.$PID
+
+		if [ ${#max_fav} -lt 3 ]
+		then
+		    max_fav="code\":34"
+		fi
+
+		if [ $bad_code -gt 10 ]
+		then
+		    break
+		else
+		    bad_code=$((bad_code + 1))
+		    touch /tmp/kagami/kagami.lock
+		    printf "r"
+		fi
+	    done
+
 	    #set +x
 	    jq -r .[].id_str /tmp/kagami/prev.$PID | sort -gu  > /tmp/kagami/ids_prev.$PID
 	    #cat /tmp/kagami/prev.$PID
@@ -115,25 +178,22 @@ else
 		do
     		    if grep -q $preid ~/.kagami/ids_list
 	    	    then
-    	    		echo "$preid found in id_list"
+    	    		printf "-"
     	    	    else
-    			touch /tmp/kagami/kagami.tweet.lock
-            		while [ $(( $(date --utc +%s) - 6 )) -lt $(date --utc --reference=/tmp/kagami/kagami.tweet.lock +%s) ]
+			touch /tmp/kagami/kagami.tweet.lock
+            		while [ $(( $(date --utc +%s) - 5 )) -lt $(date --utc --reference=/tmp/kagami/kagami.tweet.lock +%s) ]
             		do
                 	    # wait till next compare
                 	    printf "."
                 	    sleep 5
             		done
 			#set -x
-			# fav already have newest tweets so add less new
-            		twitter_get_tweet $preid >> /tmp/kagami/fav.$PID
-			#set +x
-			# cat /tmp/kagami/fav.$PID
+			printf "+"
+			twitter_get_tweet $preid >> /tmp/kagami/fav.$PID
             		rm /tmp/kagami/kagami.tweet.lock
         	    fi
     		done < /tmp/kagami/ids_prev.$PID
-		# echo "fav.PID"
-		# cat /tmp/kagami/fav.$PID
+		echo ""
     		rm /tmp/kagami/ids_prev.$PID
 	    else
 		echo "no new tweet found"
@@ -209,23 +269,23 @@ twitter_get_data()
 
     jq -r '. | { id: .id_str, date: .created_at, text: .text, url: [ .entities.urls[].url ], media: [ .extended_entities.media[]?.media_url_https ], video: [.extended_entities.media[]?.video_info ], user: .user.screen_name, user_url: .user.entities.url.urls[0].expanded_url }' /tmp/kagami/$1.tmp > /tmp/kagami/$1
     rm /tmp/kagami/$1.tmp
-    
-    author=`jq -c .user /tmp/kagami/$1`
-    author=${author:1:-1}
 
-    if grep -Fxq $author ~/.kagami/users.list
+    author=`jq -r .user /tmp/kagami/$1`
+
+    if grep -Fxq "$author" ~/.kagami/users.list
     then
-        echo "$author is known (users.list)"
+        #echo "$author is known (users.list)"
+	true
     else
         twitter_add_friend $author
-        echo "$author adding to user.list"
-        echo $author >> ~/.kagami/users.list
+        # echo "$author adding to user.list"
+        # echo $author >> ~/.kagami/users.list
     fi
 
     dl_line=$download_path"/"$1
     if [ ! -f $dl_line ]
     then
-        echo "Creating meta-data for $1"
+        # echo "Creating meta-data for $1"
         touch $dl_line
         jq ".user" /tmp/kagami/$1 >> $dl_line
         jq ".user_url" /tmp/kagami/$1 >> $dl_line
@@ -272,7 +332,7 @@ twitter_get_tweet()
 	#set -x
         result=`curl -s --get 'https://api.twitter.com/1.1/statuses/show.json' --data "${data_curl}" --header "Content-Type: application/x-www-form-urlencoded" --header "${header}"`
 	#set +x
-	if [[ "$result" == *"code"* ]]
+	if [[ "$result" == *"code\":"* ]]
 	then
 		echo $1 > $timestamp
 		echo $data_curl >> $timestamp
@@ -311,8 +371,7 @@ twitter_get_fav()
         oauth_signature=`echo -n ${signature_base_string} | openssl dgst -sha1 -hmac ${signature_key} -binary | openssl base64 | sed -e s'/+/%2B/' -e s'/\//%2F/' -e s'/=/%3D/'`
         header="Authorization: OAuth oauth_consumer_key=\"${consumer_key}\", oauth_nonce=\"${nonce}\", oauth_signature=\"${oauth_signature}\", oauth_signature_method=\"HMAC-SHA1\", oauth_timestamp=\"${timestamp}\", oauth_token=\"${oauth_token}\", oauth_version=\"1.0\""
 	result=`curl -s --get 'https://api.twitter.com/1.1/favorites/list.json' --data "${data_curl}" --header "Content-Type: application/x-www-form-urlencoded" --header "${header}"`
-	#set -x
-	echo "${result}" > /tmp/kagami/$2.tweet_dl
+
 	if [ $# -gt 0 ]
 	then
 		if [[ $1 == "since_id" ]]
@@ -329,7 +388,6 @@ twitter_get_fav()
 	else
 		echo "${result}"
 	fi
-	#set +x
 }
 
 twitter_get_friend()
@@ -375,9 +433,8 @@ twitter_add_friend()
                 data_curl="follow=true&screen_name=${1}"
         fi
         result=`curl -s -X POST 'https://api.twitter.com/1.1/friendships/create.json' --data "${data_curl}" --header "Content-Type: application/x-www-form-urlencoded" --header "${header}"`
-        debuglog "add_friend" $result
 
-	if [[ $result == *"code=\"32"* ]]
+	if [[ $result == *"code\":32"* ]]
 	then
                 echo "Error while adding $1"
         else
@@ -394,15 +451,31 @@ then
 	elif [ $1 == "ids" ]
 	then
 	    ids
+	elif [ $1 == "tweet" ]
+	then
+	    source ~/.kagami/kagami.cfg
+	    tweet $2
+	elif [ $1 == "max" ]
+	then
+	    source ~/.kagami/kagami.cfg
+	    max $2
+	elif [ $1 == "since" ]
+	then
+	    source ~/.kagami/kagami.cfg
+	    since $2
 	fi
 else
-if [ -f ~/.kagami/kagami.cfg ]
-then
+    if [ -f ~/.kagami/kagami.cfg ]
+    then
 	source ~/.kagami/kagami.cfg
         
         init_config_dirs
 
-	printf "Checking for lock"
+	if [ -f /tmp/kagami/kagami.lock ]
+	then
+	    printf "locked"
+	fi
+
 	while [ -f /tmp/kagami/kagami.lock ]
 	do
 		# wait 1minute
@@ -413,7 +486,7 @@ then
 	echo ""
 
 	populate_download_list
-	#read -p "1"
+
 	# check if result isn't too small 'not auth' is 64chars
 	FILESIZE=$(stat -c%s "/tmp/kagami/fav.$PID")
         if [ $FILESIZE -lt 200 ]
@@ -422,7 +495,7 @@ then
 		exit
 	fi
 
-	echo "Create ids.$PID"
+	#echo "Create ids.$PID"
 	jq -r .[].id_str /tmp/kagami/fav.$PID | sort -gu  > /tmp/kagami/ids.$PID
 	#exit
 	# echo "Created ids.$PID"
@@ -437,12 +510,12 @@ then
 		else
 			echo "$line processing..."
 			# get single tweet
+			cat /tmp/kagami/fav.$PID > /tmp/kagami/new.fav.$line
 			jq ".[] | select(.id_str==\"$line\")" /tmp/kagami/fav.$PID > /tmp/kagami/$line.tmp
-			# debuglog "processing $line" $(cat /tmp/kagami/$line.tmp)
                         # make download list
                         if twitter_get_data $line
 			then
-			    echo "Starting downloading..."
+			    # echo "Starting downloading..."
 			    while IFS='' read -r url_line
 			    do
 				debuglog "Start downloading for $line" "$url_line"
@@ -452,7 +525,7 @@ then
 				    echo "Already exist.. $url_line"
 				else
 				    # not found in .downloaded
-				    echo "Downloading.. $url_line"
+				    # echo "Downloading.. $url_line"
 				    url_no=${url_line:1:-1}
 				    url="${url_no}:large"
 				    file=${url_no##*/}
@@ -492,10 +565,10 @@ then
 	fi
 
 	rm /tmp/kagami/kagami.lock
-	echo "...unlocked..."
-else
+	#echo "...unlocked..."
+    else
 	new_config
-fi
+    fi
 fi
 
 # vim: tabstop=4: shiftwidth=4: noexpandtab:
