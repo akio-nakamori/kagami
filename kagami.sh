@@ -65,7 +65,7 @@ new_config_create()
 
 menu()
 {
-        echo 'What you want to do?'
+    echo 'What you want to do?'
 	echo '0 Exit'
 	echo '1 start daemon'
 	echo '2 stop daemon'
@@ -73,25 +73,37 @@ menu()
 	echo '4 kagami splash'
 	echo '5 kill daemon'
 	echo '6 status'
+	echo '7 init-dir'
+	echo '8 run once'
+	echo '9 clean'
 }
 
 menu_input()
 {
-        read -p "Pick [0-6]: " input
-        case $input in
+	read -p "Pick [0-8]: " input
+	case $input in
 		[0]*) exit;;
 		[1]*) daemon_start;;
 		[2]*) daemon_stop;;
-                [3]*) check_space_now;;
+		[3]*) check_space_now;;
 		[4]*) splash;;
 		[5]*) daemon_kill;;
 		[6]*) daemon_status;;
-        esac
+		[7]*) init_config_dirs;;
+		[8]*) run_once;;
+		[9]*) clean;;
+    esac
+}
+
+clean()
+{
+	/opt/kagami/kagami-worker.sh clean
+	echo "clean - OK"
 }
 
 check_space()
 {
-	freespace="$(df -H | grep -vE '^Filesystem|tmpfs|cdrom|udev' | awk '{ print $5  }' | cut -d'%' -f1)"
+	freespace="$(df -H | grep -vE '^Filesystem|tmpfs|cdrom|udev|run|boot'  | grep -E 'dev/' | awk '{ print $5   }' | cut -d'%' -f1)"
 	free_space="${freespace}"
 	requ_space=30
 
@@ -128,16 +140,27 @@ daemon_status()
 	fi
 }
 
+run_once()
+{
+	if check_space
+	then
+		/opt/kagami/kagami-worker.sh
+	else
+		printf "Not enought space\n"
+	fi
+}
+
 daemon_start()
 {
 	run_this=/opt/kagami/kagami-watchdog.sh
-	text -x $run_this || exit 5
+	test -x $run_this || exit 5
 	PID_this=/tmp/kagami/kagami.pid
-
+	
 	if check_space
 	then
 		printf "Starting daemon...\n"
-		startproc -f -p $PID_this $run_this
+		PID = setsid $run_this >/dev/null 2>&1 < /dev/null &
+		echo $PID > $PID_this
 		printf "Running...\n"
 	else
 		printf "Not enought space\n"
@@ -218,6 +241,7 @@ then
 	done
 else
 	new_config
+	/opt/kagami/kagami.sh
 fi
 
 # vim: tabstop=4: shiftwidth=4: noexpandtab:
