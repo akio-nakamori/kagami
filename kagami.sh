@@ -205,11 +205,11 @@ splash()
 }
 
 if [ -f ~/.kagami/kagami.cfg  ]
-    then
+then
 	source ~/.kagami/kagami.cfg
 	init_config_dirs
 	menu
-    else
+else
 	new_config
 fi
 
