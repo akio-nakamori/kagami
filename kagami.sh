@@ -65,7 +65,6 @@ new_config_create()
 
 menu()
 {
-	splash
         echo 'What you want to do?'
 	echo '0 Exit'
 	echo '1 start daemon'
@@ -74,7 +73,10 @@ menu()
 	echo '4 kagami splash'
 	echo '5 kill daemon'
 	echo '6 status'
+}
 
+menu_input()
+{
         read -p "Pick [0-6]: " input
         case $input in
 		[0]*) exit;;
@@ -208,7 +210,12 @@ if [ -f ~/.kagami/kagami.cfg  ]
 then
 	source ~/.kagami/kagami.cfg
 	init_config_dirs
+	splash
 	menu
+	while true
+	do
+		menu_input
+	done
 else
 	new_config
 fi
