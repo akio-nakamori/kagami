@@ -48,24 +48,24 @@ new_config_create()
 	fi
 	echo 'Creating config file...'
 	echo 'All needed info are on https://apps.twitter.com/app/'
-	read -p "user that you want to monitor" login
+	read -p "user that you want to monitor: " login
 	echo "screen_name=$login" >  ~/.kagami/kagami.cfg
-	read -p "consumer_key:" con_key
+	read -p "consumer_key: " con_key
 	echo "consumer_key=$con_key" >> ~/.kagami/kagami.cfg
-	read -p "consumer_secret:" con_secret
+	read -p "consumer_secret: " con_secret
 	echo "consumer_secret=$con_secret" >> ~/.kagami/kagami.cfg
-	read -p "access_token:" acc_token
+	read -p "access_token: " acc_token
 	echo "oauth_token=$acc_token" >> ~/.kagami/kagami.cfg
-	read -p "access_secret:" acc_secret
+	read -p "access_secret: " acc_secret
 	echo "oauth_secret=$acc_secret" >> ~/.kagami/kagami.cfg
-	read -p "download_path:" down_path
+	read -p "download_path: " down_path
 	echo "download_path=$down_path" >> ~/.kagami/kagami.cfg
 	echo 'Created config file ~/.kagami/kagami.cfg'
 }
 
 menu()
 {
-    echo 'What you want to do?'
+ 	echo 'What you want to do?'
 	echo '0 Exit'
 	echo '1 start daemon'
 	echo '2 stop daemon'
@@ -76,11 +76,12 @@ menu()
 	echo '7 init-dir'
 	echo '8 run once'
 	echo '9 clean'
+	echo 'h help'
 }
 
 menu_input()
 {
-	read -p "Pick [0-8]: " input
+	read -p "Pick [0-9]: " input
 	case $input in
 		[0]*) exit;;
 		[1]*) daemon_start;;
@@ -92,8 +93,10 @@ menu_input()
 		[7]*) init_config_dirs;;
 		[8]*) run_once;;
 		[9]*) clean;;
-    esac
+		[h]*) menu;;
+	esac
 }
+
 
 clean()
 {
@@ -132,11 +135,14 @@ daemon_status()
 		if [ -f /tmp/kagami/kagami.lock ]
 		then
 			printf "Kagami is running :-)\n"
+			return 0
 		else
-			printf "Kagami watchdog is running but Kagami sleep"
+			printf "Kagami watchdog is running but Kagami sleep\n"
+			return 0
 		fi
 	else
 		printf "Kagami isn't running\n"
+		return 1
 	fi
 }
 
@@ -147,6 +153,7 @@ run_once()
 		/opt/kagami/kagami-worker.sh
 	else
 		printf "Not enought space\n"
+		exit
 	fi
 }
 
@@ -175,14 +182,27 @@ daemon_stop()
 
 daemon_kill()
 {
-	if  /tmp/kagami/kagami.lock
+	if daemon_status
 	then
-		printf "Kagami is in middle of working... but I will kill her :(\n"
+		printf "Kagami is in middle of working...\n"
+		printf "I will try to stop her before unpluging her...\n"
+		daemon_stop
+		printf "Please wait 60s\n"
+		sleep 60
+		if daemon_status
+		then
+			printf "That didn't stop Kagami...\n"
+			PID_this="$(cat /tmp/kagami/kagami.pid)"
+			kill -15 $PID_this
+			printf "She is not working anymore\n"
+			printf "I will clean because she wont work in dirty room\n"
+			$(/opt/kagami/kagami-worker.sh clean)
+		else
+			printf "I stop her, shes not longer working\n"
+		fi
+	else
+		printf "Kagami isn't working so no need to kill her ;-)"
 	fi
-	PID_this="$(cat /tmp/kagami/kagami.pid)"
-	kill -15 $PID_this
-	printf "I will clean because she wont work in dirty room\n"
-	$(/opt/kagami/kagami-worker.sh clean)
 }
 
 splash()
@@ -234,7 +254,7 @@ then
 	source ~/.kagami/kagami.cfg
 	init_config_dirs
 	splash
-	menu
+
 	while true
 	do
 		menu_input

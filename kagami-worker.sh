@@ -65,188 +65,199 @@ since()
 
 populate_download_list()
 {
-if [ ! -f ~/.kagami/ids_list ]
-then
-    echo "Initial run..."
-    twitter_get_fav > /tmp/kagami/fav.$PID
-    touch ~/.kagami/ids_list
-else
-	number=$(cat ~/.kagami/ids_list | wc -l)
-	if [ $number -gt 0 ]
-    then
-		cat ~/.kagami/ids_list | sort -ug > /tmp/kagami/ids_list.tmp
-		cat /tmp/kagami/ids_list.tmp > ~/.kagami/ids_list
-		rm /tmp/kagami/ids_list.tmp
-
-		printf "Get new tweets"
-		first=$(head -n 1 ~/.kagami/ids_list)
-		last=$(tail -1 ~/.kagami/ids_list)
-
-		debuglog "first $first number $number last $last"
-
-		while [ $(( $(date --utc +%s) - 65 )) -lt $(date --utc --reference=/tmp/kagami/kagami.lock +%s) ]
-		do
-	    	# wait 60sec (65, but window is each 10 so 70sec)  before sending command
-	    	printf "."
-	    	sleep 10
-		done
-	
-		debuglog "checking since_id $last"
-    	get_since=`twitter_get_fav since_id $last`
-		# wait 65s (because better more than 60 than getting code:34)
-		sleep 65
-
-		echo > /tmp/kagami/fav.$PID
+	if [ ! -f ~/.kagami/ids_list ]
+	then
+		echo "Initial run..."
+		twitter_get_fav > /tmp/kagami/fav.$PID
+		touch ~/.kagami/ids_list
+	else
+		number=$(cat ~/.kagami/ids_list | wc -l)
 		
-		if [[ $get_since == *"code\":"* ]]
+		if [ $number -gt 0 ]
 		then
-	    	printf ": - "
-	    	echo > /tmp/kagami/fav.$PID
-		else
-	    	printf ": + "
-	    	echo $get_since > /tmp/kagami/fav.$PID
-		fi
+			cat ~/.kagami/ids_list | sort -ug > /tmp/kagami/ids_list.tmp
+			cat /tmp/kagami/ids_list.tmp > ~/.kagami/ids_list
+			rm /tmp/kagami/ids_list.tmp
 
-		debuglog "cheking max_id $first"
-		get_max=`twitter_get_fav max_id $first`
+			printf "Get new tweets"
+			first=$(head -n 1 ~/.kagami/ids_list)
+			last=$(tail -1 ~/.kagami/ids_list)
 
-		if [[ $get_max == *"code\":"* ]]
-		then
-	    	printf ": - "
-		else
-	    	printf ": + "
-	    	echo $get_max >> /tmp/kagami/fav.$PID
-		fi
-	
-		echo ""
+			debuglog "first $first number $number last $last"
 
-		# update lock
-        touch /tmp/kagami/kagami.lock
-		touch /tmp/kagami/kagami.tweet.lock
-
-		echo "Searching for missing older tweets"
-		
-		numer=`cat ~/.kagami/ids_list | wc -l`
-		COUNTER=0
-		while [ $COUNTER -le $number ]
-        do
-	    	printf "$COUNTER/$number : "
-	    	
-			num=$((number - COUNTER))
-	    	debuglog "$number - $COUNTER = $num"
-			if [ $num -eq 0 ]
-	    	then
-				num=1
-	    	fi
-
-	    	new_id=$(sed "${num}q;d" ~/.kagami/ids_list)
-
-	    	printf "$new_id :"
-	    	COUNTER=$((COUNTER + 1))
-            
 			while [ $(( $(date --utc +%s) - 65 )) -lt $(date --utc --reference=/tmp/kagami/kagami.lock +%s) ]
-            do
-                # wait till next compare (add buffer so it will be allways more than 1command/1minut
-                printf "."
-                sleep 70
-            done
+			do
+			    	# wait 60sec (65, but window is each 10 so 70sec)  before sending command
+		    		printf "."
+			    	sleep 10
+			done
+	
+			debuglog "checking since_id $last"
+		    	get_since=`twitter_get_fav since_id $last`
+			# wait 65s (because better more than 60 than getting code:34)
+			sleep 65
 
-			debuglog "max_id $new_id"
-            max_fav=`twitter_get_fav max_id $new_id`
-	    	echo $max_fav > /tmp/kagami/prev.$PID
+			echo > /tmp/kagami/fav.$PID
+		
+			if [[ $get_since == *"code\":"* ]]
+			then
+			    	printf ": - "
+			    	echo > /tmp/kagami/fav.$PID
+			else
+			    	printf ": + "
+	    			echo $get_since > /tmp/kagami/fav.$PID
+			fi
 
-	    	touch /tmp/kagami/kagami.lock
-	    	bad_code=1
+			debuglog "cheking max_id $first"
+			get_max=`twitter_get_fav max_id $first`
 
-			debuglog "checking for code 34"
-	    	while [[ $max_fav == *"code\":34"* ]]
-	    	do
-				debuglog "wait 60s"
-				while [ $(( $(date --utc +%s) - 10 )) -lt $(date --utc --reference=/tmp/kagami/kagami.lock +%s) ]
+			if [[ $get_max == *"code\":"* ]]
+			then
+			    	printf ": - "
+			else
+			    	printf ": + "
+			    	echo $get_max >> /tmp/kagami/fav.$PID
+			fi
+	
+			echo ""
+
+			# update lock
+		        touch /tmp/kagami/kagami.lock
+			touch /tmp/kagami/kagami.tweet.lock
+
+			echo "Searching for missing older tweets"
+		
+			numer=`cat ~/.kagami/ids_list | wc -l`
+			COUNTER=0
+
+			while [ $COUNTER -le $number ]
+		        do
+	    			printf "$COUNTER/$number : "
+	    	
+				num=$((number - COUNTER))
+			    	debuglog "$number - $COUNTER = $num"
+				if [ $num -eq 0 ]
+			    	then
+					num=1
+			    	fi
+
+	    			new_id=$(sed "${num}q;d" ~/.kagami/ids_list)
+
+			    	printf "$new_id :"
+	    			COUNTER=$((COUNTER + 1))
+            
+				while [ $(( $(date --utc +%s) - 65 )) -lt $(date --utc --reference=/tmp/kagami/kagami.lock +%s) ]
 				do
-		    		sleep 60
+			                # wait till next compare (add buffer so it will be allways more than 1command/1minut
+			                printf "."
+			                sleep 70
 				done
 
 				debuglog "max_id $new_id"
-				max_fav=`twitter_get_fav max_id $new_id`
-				echo $mad_fav > /tmp/kagami/$new_id.tmp
-				echo $mad_fav > /tmp/kagami/prev.$PID
+        			max_fav=`twitter_get_fav max_id $new_id`
+				echo $max_fav > /tmp/kagami/prev.$PID
 
-				debuglog "check if max_fav have less than 3 chars"
-				if [ ${#max_fav} -lt 3 ]
+				touch /tmp/kagami/kagami.lock
+			    	bad_code=1
+
+				debuglog "checking for code 32 - bad auth"
+
+			    	while [[ $max_fav == *"code\":32"* ]]
+	    			do
+					debuglog "wait 60s"
+					while [ $(( $(date --utc +%s) - 10 )) -lt $(date --utc --reference=/tmp/kagami/kagami.lock +%s) ]
+					do
+		    				sleep 60
+					done
+
+					debuglog "max_id $new_id"
+					max_fav=`twitter_get_fav max_id $new_id`
+					echo $mad_fav > /tmp/kagami/$new_id.tmp
+					echo $mad_fav > /tmp/kagami/prev.$PID
+
+					debuglog "check if max_fav have less than 3 chars"
+					if [ ${#max_fav} -lt 3 ]
+					then
+						debuglog "force max_fav = code:32"
+			    			max_fav="code\":32"
+					fi
+
+					debuglog "bad_code = $bad_code"
+					if [ $bad_code -gt 10 ]
+					then
+						debuglog "break out bad_code"
+			    			break
+					else
+						debuglog "still bad_code = $((bad_code + 1))"
+			    			bad_code=$((bad_code + 1))
+			    			touch /tmp/kagami/kagami.lock
+			    			printf "r"
+					fi
+				done
+
+				debuglog "end code 32"
+
+				debuglog "ids_str"
+				if `jq -r .[].id_str /tmp/kagami/prev.$PID > /tmp/kagami/ids_str.$PID`
 				then
-					debuglog "force max_fav = code:34"
-			    	max_fav="code\":34"
+					debuglog "id_str - ok"
+				else 
+					debuglog "id_str - not ok"
+					cp /tmp/kagami/prev.$PID /tmp/kagami/prev.$PID.broken
 				fi
+		
+				debuglog "sort -gu"
+				`sort -gu /tmp/kagami/ids_str.$PID > /tmp/kagami/ids_prev.$PID`
 
-				debuglog "bad_code = $bad_code"
-				if [ $bad_code -gt 10 ]
-				then
-					debuglog "break out bad_code"
-			    	break
-				else
-					debuglog "still bad_code = $((bad_code + 1))"
-			    	bad_code=$((bad_code + 1))
-			    	touch /tmp/kagami/kagami.lock
-			    	printf "r"
-				fi
-	    	done
-
-			debuglog "end code 34"
-
-	    	#set +x
-			if `jq -r .[].id_str /tmp/kagami/prev.$PID | sort -gu  > /tmp/kagami/ids_prev.$PID`
-			then
-				debuglog "id_str - ok"
-			else 
-				debuglog "id_str - not ok"
-				cp /tmp/kagami/prev.$PID /tmp/kagami/prev.$PID.broken
-			fi
-	    	#cat /tmp/kagami/prev.$PID
-	    	rm /tmp/kagami/prev.$PID
-	    	prev_size=`cat /tmp/kagami/ids_prev.$PID | wc -l`
+			    	rm /tmp/kagami/ids_str.$PID
+	    			rm /tmp/kagami/prev.$PID
+			    	prev_size=`cat /tmp/kagami/ids_prev.$PID | wc -l`
 	    	
-			debuglog "checking prev_size = $prev_size"
-			# check if size is near empty
-	    	if [ $prev_size -gt 0 ]
-	    	then
-                while IFS='' read -r preid || [[ -n "$preid" ]]
-				do
-    		    	if grep -q $preid ~/.kagami/ids_list
-	    	    	then
-						debuglog "$preid already in ids_list"
-    	    			printf "-"
-    	    	    else
-						debuglog "$predid not found in ids_list. processing..."
-						touch /tmp/kagami/kagami.tweet.lock
-            			#locked
-						while [ $(( $(date --utc +%s) - 5 )) -lt $(date --utc --reference=/tmp/kagami/kagami.tweet.lock +%s) ]
-            			do
-                	    	# wait till next compare
-                	    	# printf "."
-                	    	sleep 5
-            			done
+				debuglog "checking prev_size = $prev_size"
+
+				# check if size is near empty
+			    	if [ $prev_size -gt 0 ]
+			    	then
+	        		        while IFS='' read -r preid || [[ -n "$preid" ]]
+					do
+    					    	if grep -q $preid ~/.kagami/ids_list
+	    		    			then
+							debuglog "$preid already in ids_list"
+    	    						printf "-"
+						else
+							debuglog "$predid not found in ids_list. processing..."
+							touch /tmp/kagami/kagami.tweet.lock
+            				
+							#locked
+							while [ $(( $(date --utc +%s) - 5 )) -lt $(date --utc --reference=/tmp/kagami/kagami.tweet.lock +%s) ]
+	        		    			do
+        		        			    	# wait till next compare
+		                			    	# printf "."
+				                	    	sleep 5
+            						done
 						
-						#set -x
-						printf "+"
-						debuglog "get_tweet $preid"
-						twitter_get_tweet $preid >> /tmp/kagami/fav.$PID
-            			#unlocked
-						rm /tmp/kagami/kagami.tweet.lock
-        	    	fi
-    			done < /tmp/kagami/ids_prev.$PID
+							#set -x
+							printf "+"
+		
+							debuglog "get_tweet $preid"
+							twitter_get_tweet $preid >> /tmp/kagami/fav.$PID
+            		
+							#unlocked
+							rm /tmp/kagami/kagami.tweet.lock
+						fi
+		    			done < /tmp/kagami/ids_prev.$PID
 				
-				echo ""
-    			rm /tmp/kagami/ids_prev.$PID
-	    	else
-				echo "no new tweet found"
-	    	fi
-		done
-    else
-		echo "ids_list is empty"
-		twitter_get_fav > /tmp/kagami/fav.$PID
-    fi
-fi
+					echo ""
+    					rm /tmp/kagami/ids_prev.$PID
+			    	else
+					echo "no new tweet found"
+			    	fi
+			done
+		else
+			echo "ids_list is empty"
+			twitter_get_fav > /tmp/kagami/fav.$PID
+		fi
+	fi
 }
 
 twitter_get_data()
