@@ -205,7 +205,7 @@ clean()
         rm /tmp/kagami/kagami.tweet.lock
     fi
 
-    rm -f /tmp/kagami/*.tmp
+    rm -f /tmp/kagami/*
 }
 
 #check if disk have enough percent of free space
@@ -823,14 +823,30 @@ daemon_run()
     fi
 }
 
+start_daemon()
+{
+	while true
+	do
+		if [ -f /tmp/kagami/kagami.kill ]
+		then
+			rm /tmp/kagami/kagami.kill
+			exit
+		fi
+		daemon_run
+	done
+}
+
 PID=$$                                                                                                        
                                                                                                                                                                                                                              
 if [ $# -gt 0  ]                                                                                               
-then            
-	if [ $1 == "daemon" ]
+then
+	if [ $1 == "once" ]
 	then
-		daemon_start
-		print "daemon"
+		daemon_run
+	elif [ $1 == "daemon" ]
+	then
+		print "starting daemon"
+		start_daemon
 	elif [ $1 == "clean" ]                                                                                      
 	then
 		clean
