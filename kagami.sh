@@ -13,9 +13,9 @@ check_config()
 if [ ! -f $cfg_file ]
 then
 	while [ ! -f $cfg_file ]
-	then
+	do
 		new_config
-	fi
+	done
 fi
 }
 
@@ -40,11 +40,11 @@ if grep -q screen_name "$cfg_file"; then
 				if grep -q oauth_secret "$cfg_file"; then
 					if grep -q download_path "$cfg_file"; then
 						if grep -q download_disk "$cfg_file"; then
-							return True
+							return 0
 						else
 							read -p "download_disk:" down_disk
 							echo "download_disk=$down_disk" >> $cfg_file
-							return True
+							return 0
 						fi
 					fi
 				fi
@@ -53,7 +53,7 @@ if grep -q screen_name "$cfg_file"; then
 	fi
 fi
 
-return False
+return 1
 }
 
 #wizard for config creation
@@ -172,7 +172,7 @@ menu()
 #handle menu input
 menu_input()
 {
-	read -p "Pick [0-8]: " input
+	read -p "Pick [0-9]: " input
 	case $input in
 		[0]*) exit;;
 		[1]*) daemon_start;;
@@ -831,27 +831,26 @@ then
 	then
 		daemon_start
 		print "daemon"
-	elif
-    if [ $1 == "clean" ]                                                                                      
-    then
+	elif [ $1 == "clean" ]                                                                                      
+	then
 		clean
 		printf "clean\n"
 	elif [ $1 == "ids" ]
 	then
 		ids                                                                                                   
-    elif [ $1 == "tweet" ]                                                                                    
-    then                                                                                                      
+	elif [ $1 == "tweet" ]                                                                                    
+	then                                                                                                      
 		source $cfg_file                                                                           
 		tweet $2                                                                                              
-    elif [ $1 == "max" ]                                                                                      
-    then                                                                                                      
+	elif [ $1 == "max" ]                                                                                      
+	then                                                                                                      
 		source $cfg_file                                                                           
 		max $2                                                                                                
-    elif [ $1 == "since" ]                                                                                    
-    then                                                                                                      
+	elif [ $1 == "since" ]                                                                                    
+	then                                                                                                      
 		source $cfg_file                                                                           
 		since $2                                                                                              
-    fi                                                                                                        
+	fi                                                                                                        
 else                                                                                                          
 	check_config
 	if syntax_config
