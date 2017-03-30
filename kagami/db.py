@@ -45,6 +45,9 @@ class FileTable(Base):
     user_screen_name = Column(Unicode(512), nullable=False)
     tweet_id_str = Column(Unicode(512), nullable=False)
 
+    def __repr__(self):
+        return "<User(file='%s')>" % self.file
+
 
 class TimerTable(Base):
     __tablename__ = 'timer'
@@ -54,6 +57,9 @@ class TimerTable(Base):
     limit = Column(Integer, nullable=False)
     time = Column(Float, nullable=False)
 
+    def __repr__(self):
+        return "<User(name='%s', count='%s', limit='%s', time='%s')>" % (self.name, self.count, self.limit, self.time)
+
 
 class TweetTable(Base):
     __tablename__ = 'tweet'
@@ -62,3 +68,6 @@ class TweetTable(Base):
     screen_name = Column(Unicode(512), nullable=False)
     text = Column(Unicode(512), nullable=False)
     url = Column(Unicode(512), nullable=True)
+
+    def __repr__(self):
+        return "<User(id_str='%s')>" % self.id_str

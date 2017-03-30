@@ -1,20 +1,19 @@
 #!/usr/bin/env python
-# kagami
 
 try:
     from setuptools import setup
 except ImportError:
     from distutils.core import setup
 
-setup(
-    name='kagami',
-    version="0.1",
-    description='',
-    long_description='',
-    author='bigretromike',
-    url='',
-    packages=["kagami", ],
-    test_suite='tests',
-    install_requires=[],
-    license='MIT'
-)
+setup(name='kagami',
+      version="0.3",
+      description='Kagami is Twitter stalker ;-)',
+      author='bigretromike',
+      url='https://github.com/bigretromike/kagami/',
+      packages=["kagami", ],
+      install_requires=[
+          'twitter>=1.17.1',
+          'sqlalchemy>=1.1.5'
+      ],
+      license='MIT'
+      )

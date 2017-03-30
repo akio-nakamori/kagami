@@ -7,15 +7,13 @@ from os.path import exists as os_exists
 from os import mkdir
 import json
 import db
-import splash
+
 from twitter import *
 from sys import platform, stdout
 from sqlalchemy import exists
 from time import time, sleep
 from urllib import urlretrieve
 from ntpath import split, basename
-from threading import Thread
-from Queue import Queue
 
 
 if platform == "win32":
@@ -153,7 +151,8 @@ class Kagami:
             if silent is False:
                 print("Download: OK")
 
-    def halt(self):
+    @staticmethod
+    def halt():
         db.session.close()
 
     def free_space(self):
@@ -174,7 +173,8 @@ class Kagami:
 
     def get_fav_tweets(self, since_id):
         # resetting limit if needed
-        if time() - float(self.timer_fav['time']) > 900:
+        time_now = time()
+        if time_now - float(self.timer_fav['time']) > 900:
             self.timer_fav['count'] = self.timer_fav['limit']
         if not since_id:
             since_id = 1
@@ -231,17 +231,14 @@ class Kagami:
                                 if not db.session.query(exists().where(db.FileTable.file == f.file)).scalar():
                                     db.session.add(f)
                                     db.session.commit()
-
                         db.session.add(n)
                         db.session.commit()
 
                 if favorites.__len__() != 0:
                     if since_id in kwargs:
                         kwargs.__delitem__('since_id')
-                    # kwargs['since_id'] = favorites[0]['id']
                     fav_len = favorites.__len__()
                     kwargs['max_id'] = favorites[fav_len - 1]['id']
-                    # local_last_since_id = int(kwargs['since_id'])
                 else:
                     get_more_favorite = False
                     local_last_since_id = 0
@@ -264,7 +261,6 @@ class Kagami:
                     self.timer_fav['count'] = self.timer_fav['limit']
                 else:
                     self.timer_fav['count'] = 75
-                # favorites = {'1'}
 
             db.session.query(db.TimerTable).filter_by(name=unicode('fav')).update({"time": self.timer_fav['time']})
             db.session.query(db.TimerTable).filter_by(name=unicode('fav')).update({"count": self.timer_fav['count']})
@@ -275,7 +271,8 @@ class Kagami:
 
     def get_friends(self):
         # resetting limit if needed
-        if time() > float(self.timer_fri['time']):
+        time_now = time()
+        if time_now > float(self.timer_fri['time']):
             self.timer_fri['count'] = self.timer_fri['limit']
 
         t = Twitter(auth=OAuth(token=self.config['oauth_token'],
@@ -318,10 +315,10 @@ class Kagami:
                     get_more_friends = False
                 else:
                     # we hit the limit
-                    reset_time = time() - self.timer_fri['time']
+                    reset_time = self.timer_fri['time'] - time()
                     print("Waiting {} seconds because friends_list limit".format(str(reset_time)))
                     if reset_time < 0:
-                        reset_time *= -1
+                        reset_time = 0
                     time_to_wait = int(reset_time) + 1
                     current_seconds = 0
                     while current_seconds <= time_to_wait:
@@ -332,9 +329,9 @@ class Kagami:
                     self.timer_fri['time'] = time()
                     self.timer_fri['count'] = self.timer_fri['limit']
 
-            db.session.query(db.TimerTable).filter_by(name='fri').update({"time": self.timer_fri['time']})
-            db.session.query(db.TimerTable).filter_by(name='fri').update({"count": self.timer_fri['count']})
-            db.session.query(db.TimerTable).filter_by(name='fri').update({"limit": self.timer_fri['limit']})
+            db.session.query(db.TimerTable).filter_by(name=unicode('fri')).update({"time": self.timer_fri['time']})
+            db.session.query(db.TimerTable).filter_by(name=unicode('fri')).update({"count": self.timer_fri['count']})
+            db.session.query(db.TimerTable).filter_by(name=unicode('fri')).update({"limit": self.timer_fri['limit']})
             db.session.commit()
 
     def add_friend(self, screen_name):
@@ -343,8 +340,7 @@ class Kagami:
                                token_secret=self.config['oauth_secret'],
                                consumer_key=self.config['consumer_key'],
                                consumer_secret=self.config['consumer_secret']))
-        kwargs = dict(screen_name=screen_name,
-                      follow=1)
+        kwargs = dict(screen_name=screen_name, follow=1)
         friends = t.friendships.create(**kwargs)  # execute
         return friends['following']
 
@@ -389,88 +385,3 @@ class Kagami:
         percent += " " + str(counter) + "/" + str(counter_max)
         stdout.write("\r" + prefix + percent)
         stdout.flush()
-
-
-def print_menu():
-    print("What you want to do?")
-    print("0 Exit")
-    print("1 Get_All_Friends")
-    print("2 Get_All_Favorite")
-    print("3 Loop (Monitor) All_Favorites")
-
-
-def worker():
-    kag = Kagami()
-    while True:
-        next_item = q.get()
-        if next_item is not None:
-            kag.run(silent=True)
-            if int(next_item) == -1:
-                kag.get_friends()
-            elif int(next_item) == 0:
-                kag.download_media()
-            elif int(next_item) > 0:
-                global last_since_id
-                last_since_id = kag.get_fav_tweets(int(next_item))
-        q.task_done()
-
-q = Queue()
-
-last_since_id = 1
-
-if __name__ == '__main__':
-    print splash.splash
-    k = Kagami()
-    k.run(silent=False)
-
-    z = Thread(target=worker)
-    z.daemon = True
-    z.start()
-
-    print_menu()
-
-    run_this = 1
-    while run_this == 1:
-        command = raw_input("Pick [0-9]:")
-        if command == "0":  # exit
-            run_this = 0
-        elif command == "1":  # get friends
-            q.put(-1)
-            q.join()
-            print("Friends List Refresh: DONE")
-        elif command == "2":  # get fav
-            k.run_application = 1
-            while k.run_application == 1:
-                q.put(last_since_id)  # start from start
-                q.put(0)  # download
-                q.join()
-                if last_since_id != 0:
-                    for i in xrange(1, 60):
-                        Kagami().print_progress_bar("Waiting ", i, 60)
-                        sleep(1)
-                else:
-                    print("last_since_id = 0, time to say goodbye")
-                    k.run_application = 0
-            print("Favorite Tweets Refresh: DONE")
-        elif command == "3":  # loop fav
-            k.run_application = 1
-            while k.run_application == 1:
-                q.put(last_since_id)
-                q.put(0)
-                q.join()
-                if last_since_id != 0:
-                    for i in xrange(1, 60):
-                        Kagami().print_progress_bar("Waiting ", i, 60)
-                        sleep(1)
-                else:
-                    print("")  # new line
-                    for i in xrange(1, 60*15):
-                        Kagami().print_progress_bar("Sleeping ", i, 60*15)
-                        sleep(1)
-                    last_since_id = 1
-        else:
-            run_this = 0
-
-    print("Shutdown Kagami...")
-    k.halt()
-    exit(0)
