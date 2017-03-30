@@ -191,61 +191,68 @@ class Kagami:
         tweets_count_max = 0
         local_last_since_id = since_id
         while get_more_favorite:
-            if self.timer_fav['count'] > 0:  # and favorites.__len__() != 0:  # count_message_recived
-                favorites = t.favorites.list(**kwargs)  # execute
-                tweets_count_max += favorites.__len__()
-                for favorite in favorites:
-                    tweets_count += 1
-                    self.print_progress_bar("Downloading Tweets: ", tweets_count, tweets_count_max)
-                    if not db.session.query(exists().where(db.TweetTable.id_str == favorite['id_str'])).scalar():
-                        n = db.TweetTable()
-                        n.id_str = unicode(favorite['id_str'])
-                        n.text = unicode(favorite['text'])
-                        n.screen_name = unicode(favorite['user']['screen_name'])
-                        if not db.session.query(exists().where(db.UserTable.screen_name == n.screen_name)).scalar():
-                            self.add_friend(n.screen_name)
-                        n.url = favorite['entities']['urls']
-                        if n.url == "" or not n.url:
-                            n.url = unicode("empty")
-                        else:
-                            n.url = n.url[0]['url']
+            if self.timer_fav['count'] > 0:
+                try:
+                    favorites = t.favorites.list(**kwargs)  # execute
+                    tweets_count_max += favorites.__len__()
+                    for favorite in favorites:
+                        tweets_count += 1
+                        self.print_progress_bar("Downloading Tweets: ", tweets_count, tweets_count_max)
+                        if not db.session.query(exists().where(db.TweetTable.id_str == favorite['id_str'])).scalar():
+                            n = db.TweetTable()
+                            n.id_str = unicode(favorite['id_str'])
+                            n.text = unicode(favorite['text'])
+                            n.screen_name = unicode(favorite['user']['screen_name'])
+                            if not db.session.query(exists().where(db.UserTable.screen_name == n.screen_name)).scalar():
+                                self.add_friend(n.screen_name)
+                            n.url = favorite['entities']['urls']
+                            if n.url == "" or not n.url:
+                                n.url = unicode("empty")
+                            else:
+                                n.url = n.url[0]['url']
 
-                        if 'extended_entities' in favorite:
-                            medias = favorite['extended_entities']['media']  # media_url_https
-                            for media in medias:
-                                f = db.FileTable()
-                                f.user_screen_name = n.screen_name
-                                f.tweet_id_str = n.id_str
-                                if media['type'] == "photo":
-                                    f.file = media['media_url_https']
-                                elif media['type'] == "video" or media['type'] == "animated_gif":
-                                    bitrate = 0
-                                    for variant in media['video_info']['variants']:
-                                        if 'bitrate' in variant:
-                                            if variant['bitrate'] >= bitrate:
-                                                bitrate = variant['bitrate']
-                                                f.file = variant['url']
-                                else:
-                                    print("Unsupported type:" + str(media['type']))
-                                f.local = 0
-                                if not db.session.query(exists().where(db.FileTable.file == f.file)).scalar():
-                                    db.session.add(f)
-                                    db.session.commit()
-                        db.session.add(n)
-                        db.session.commit()
+                            if 'extended_entities' in favorite:
+                                medias = favorite['extended_entities']['media']  # media_url_https
+                                for media in medias:
+                                    f = db.FileTable()
+                                    f.user_screen_name = n.screen_name
+                                    f.tweet_id_str = n.id_str
+                                    if media['type'] == "photo":
+                                        f.file = media['media_url_https']
+                                    elif media['type'] == "video" or media['type'] == "animated_gif":
+                                        bitrate = 0
+                                        for variant in media['video_info']['variants']:
+                                            if 'bitrate' in variant:
+                                                if variant['bitrate'] >= bitrate:
+                                                    bitrate = variant['bitrate']
+                                                    f.file = variant['url']
+                                    else:
+                                        print("Unsupported type:" + str(media['type']))
+                                    f.local = 0
+                                    if not db.session.query(exists().where(db.FileTable.file == f.file)).scalar():
+                                        db.session.add(f)
+                                        db.session.commit()
+                            db.session.add(n)
+                            db.session.commit()
 
-                if favorites.__len__() != 0:
-                    if since_id in kwargs:
-                        kwargs.__delitem__('since_id')
-                    fav_len = favorites.__len__()
-                    kwargs['max_id'] = favorites[fav_len - 1]['id']
-                else:
-                    get_more_favorite = False
-                    local_last_since_id = 0
+                    if favorites.__len__() != 0:
+                        if since_id in kwargs:
+                            kwargs.__delitem__('since_id')
+                        fav_len = favorites.__len__()
+                        kwargs['max_id'] = favorites[fav_len - 1]['id']
+                    else:
+                        get_more_favorite = False
+                        local_last_since_id = 0
 
-                self.timer_fav['time'] = favorites.rate_limit_reset
-                self.timer_fav['count'] = favorites.rate_limit_remaining
-                self.timer_fav['limit'] = favorites.rate_limit_limit
+                    self.timer_fav['time'] = favorites.rate_limit_reset
+                    self.timer_fav['count'] = favorites.rate_limit_remaining
+                    self.timer_fav['limit'] = favorites.rate_limit_limit
+                except:
+                    current_seconds = 0
+                    while current_seconds <= 30:
+                        current_seconds += 1
+                        Kagami().print_progress_bar("Waiting (error): ", current_seconds, 30)
+                        sleep(1)
             else:
                 # we hit the limit
                 time_now = time()
@@ -293,23 +300,30 @@ class Kagami:
         get_more_friends = True
         while get_more_friends:
             if self.timer_fri['count'] > 0 and friends['next_cursor'] != 0:
-                friends = t.friends.list(**kwargs)  # execute
-                friend_count_max += friends['users'].__len__()
-                for friend in friends['users']:
-                    friend_count += 1
-                    self.print_progress_bar("Downloading Friends: ", friend_count, friend_count_max)
-                    if not db.session.query(exists().where(db.UserTable.id_str == friend['id_str'])).scalar():
-                        u = db.UserTable()
-                        u.id_str = friend['id_str']
-                        u.screen_name = friend['screen_name']
-                        u.added = 0
-                        db.session.add(u)
-                        db.session.commit()
-                kwargs['cursor'] = friends['next_cursor']
+                try:
+                    friends = t.friends.list(**kwargs)  # execute
+                    friend_count_max += friends['users'].__len__()
+                    for friend in friends['users']:
+                        friend_count += 1
+                        self.print_progress_bar("Downloading Friends: ", friend_count, friend_count_max)
+                        if not db.session.query(exists().where(db.UserTable.id_str == friend['id_str'])).scalar():
+                            u = db.UserTable()
+                            u.id_str = friend['id_str']
+                            u.screen_name = friend['screen_name']
+                            u.added = 0
+                            db.session.add(u)
+                            db.session.commit()
+                    kwargs['cursor'] = friends['next_cursor']
 
-                self.timer_fri['time'] = friends.rate_limit_reset
-                self.timer_fri['count'] = friends.rate_limit_remaining
-                self.timer_fri['limit'] = friends.rate_limit_limit
+                    self.timer_fri['time'] = friends.rate_limit_reset
+                    self.timer_fri['count'] = friends.rate_limit_remaining
+                    self.timer_fri['limit'] = friends.rate_limit_limit
+                except:
+                    current_seconds = 0
+                    while current_seconds <= 30:
+                        current_seconds += 1
+                        Kagami().print_progress_bar("Waiting (error): ", current_seconds, 30)
+                        sleep(1)
             else:
                 if friends['next_cursor'] == 0:
                     get_more_friends = False
@@ -319,7 +333,7 @@ class Kagami:
                     print("Waiting {} seconds because friends_list limit".format(str(reset_time)))
                     if reset_time < 0:
                         reset_time = 0
-                    time_to_wait = int(reset_time) + 1
+                    time_to_wait = int(reset_time) + 10
                     current_seconds = 0
                     while current_seconds <= time_to_wait:
                         current_seconds += 1
