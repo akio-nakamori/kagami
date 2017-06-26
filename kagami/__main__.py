@@ -3,9 +3,15 @@
 
 import splash
 import kagami
+import sys
 from threading import Thread
 from Queue import Queue
 from time import sleep
+
+# variables
+q = Queue()
+last_since_id = 1
+run_this = 1
 
 
 def print_menu():
@@ -18,6 +24,7 @@ def print_menu():
 
 def worker():
     kag = kagami.Kagami()
+    kag.run(silent=True)
     while True:
         next_item = q.get()
         if next_item is not None:
@@ -31,21 +38,47 @@ def worker():
                 last_since_id = kag.get_fav_tweets(int(next_item))
         q.task_done()
 
-q = Queue()
 
-last_since_id = 1
+def run_daemon_task(kk, qq):
+    kk.run_application = 1
+    while kk.run_application == 1:
+        global last_since_id
+        qq.put(last_since_id)
+        qq.put(0)
+        qq.join()
+        if last_since_id != 0:
+            for i in xrange(1, 60):
+                kagami.Kagami().print_progress_bar("Waiting ", i, 60)
+                sleep(1)
+        else:
+            print("")  # new line
+            for i in xrange(1, 60*15):
+                kagami.Kagami().print_progress_bar("Sleeping ", i, 60*15)
+                sleep(1)
+            last_since_id = 1
 
-print splash.splash
+# detect argument to start in daemon
+if len(sys.argv) > 1:
+    if sys.argv[1] == "daemon":
+        run_this = 0
+
+if run_this == 1:
+    # splash screen
+    print splash.splash
+    print_menu()
+else:
+    print"starting..."
+
+# initial setup
 k = kagami.Kagami()
 k.run(silent=False)
+k.halt()
 
+# setup worker
 z = Thread(target=worker)
 z.daemon = True
 z.start()
 
-print_menu()
-
-run_this = 1
 while run_this == 1:
     command = raw_input("Pick [0-9]:")
     if command == "0":  # exit
@@ -69,21 +102,7 @@ while run_this == 1:
                 k.run_application = 0
         print("Favorite Tweets Refresh: DONE")
     elif command == "3":  # loop fav
-        k.run_application = 1
-        while k.run_application == 1:
-            q.put(last_since_id)
-            q.put(0)
-            q.join()
-            if last_since_id != 0:
-                for i in xrange(1, 60):
-                    kagami.Kagami().print_progress_bar("Waiting ", i, 60)
-                    sleep(1)
-            else:
-                print("")  # new line
-                for i in xrange(1, 60*15):
-                    kagami.Kagami().print_progress_bar("Sleeping ", i, 60*15)
-                    sleep(1)
-                last_since_id = 1
+        run_daemon_task(k, q)
     else:
         run_this = 0
 

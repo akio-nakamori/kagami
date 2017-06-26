@@ -6,7 +6,7 @@ except ImportError:
     from distutils.core import setup
 
 setup(name='kagami',
-      version="0.5",
+      version="0.6",
       description='Kagami is Twitter monitor',
       author='bigretromike',
       url='https://github.com/bigretromike/kagami/',
