@@ -14,12 +14,14 @@ from sqlalchemy import exists
 from time import time, sleep
 from urllib import urlretrieve
 from ntpath import split, basename
-
+import logging
 
 if platform == "win32":
     import ctypes
 else:
     from os import statvfs
+
+logging.basicConfig()
 
 
 class Kagami:
@@ -354,7 +356,7 @@ class Kagami:
                                token_secret=self.config['oauth_secret'],
                                consumer_key=self.config['consumer_key'],
                                consumer_secret=self.config['consumer_secret']))
-        kwargs = dict(screen_name=screen_name, follow=1)
+        kwargs = dict(screen_name=screen_name, follow=0)
         friends = t.friendships.create(**kwargs)  # execute
         return friends['following']
 
