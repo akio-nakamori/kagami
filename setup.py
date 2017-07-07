@@ -7,9 +7,9 @@ except ImportError:
 
 setup(name='kagami',
       version="0.6",
-      description='Kagami is Twitter monitor',
+      description='Kagami is Twitter bot that scan all favorites tweet of given user.',
       author='bigretromike',
-      url='https://github.com/bigretromike/kagami/',
+      url='https://github.com/akio-nakamori/kagami/',
       packages=["kagami", ],
       install_requires=[
           'twitter>=1.17.1',
